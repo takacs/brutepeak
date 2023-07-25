@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/rand"
 	"os"
 	"regexp"
 	"strconv"
@@ -19,9 +20,25 @@ type point struct {
 }
 
 func BrutePeak(experimental_path, theoretical_path string) {
-	experimental_points := parseFile(experimental_path, "\t")
-	theoretical_points := parseFile(theoretical_path, " ")
-	createTheoretical(theoretical_points, experimental_points)
+	experimental_points := normalize(parseFile(experimental_path, "\t"))
+	theoretical_points_base := normalize(parseFile(theoretical_path, " "))
+	minLSQ := float64(1000)
+	var minPoints []point
+	for i := 0; i <= 10000; i++ {
+		theoretical_points := make([]point, len(theoretical_points_base))
+		copy(theoretical_points, theoretical_points_base)
+		theoretical_points = randomizeXPositions(theoretical_points)
+		theoretical_points = createTheoretical(theoretical_points, experimental_points)
+		lsq := leastSquare(experimental_points, theoretical_points)
+		if lsq < minLSQ {
+			minLSQ = lsq
+			minPoints = theoretical_points
+		}
+		// fmt.Printf("Current iteration LSQ: %v | Minimum LSQ: %v\n", lsq, minLSQ)
+	}
+	for _, point := range minPoints {
+		fmt.Printf("%v,%v\n", point.x, point.intensity)
+	}
 }
 
 func parseFile(path, sep string) []point {
@@ -55,15 +72,43 @@ func getGaussianValue(ep, tp point) float64 {
 	return multiplier * exponent
 }
 
-func createTheoretical(theo_points, exp_points []point) []float64 {
-	base := make([]float64, len(exp_points))
+func createTheoretical(theo_points, exp_points []point) []point {
+	base := make([]point, len(exp_points))
 	for _, tp := range theo_points {
 		for i, ep := range exp_points {
 			gaussVal := getGaussianValue(ep, tp)
-			base[i] = base[i] + gaussVal
+			base[i] = point{x: ep.x, intensity: base[i].intensity + gaussVal}
 		}
 
 	}
-	fmt.Println(base)
 	return base
+}
+
+func leastSquare(from, to []point) float64 {
+	var lsf float64
+	for i := range from {
+		distance := math.Pow(from[i].intensity-to[i].intensity, 2)
+		lsf = lsf + distance
+	}
+	return lsf
+}
+
+func normalize(spectra []point) []point {
+	var max float64
+	for i := range spectra {
+		if spectra[i].intensity > max {
+			max = spectra[i].intensity
+		}
+	}
+	for i := range spectra {
+		spectra[i].intensity = spectra[i].intensity / max
+	}
+	return spectra
+}
+
+func randomizeXPositions(spectra []point) []point {
+	for i := range spectra {
+		spectra[i].x = spectra[i].x + (-5 + 10*rand.Float64())
+	}
+	return spectra
 }
