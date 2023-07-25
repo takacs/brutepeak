@@ -1,5 +1,8 @@
 package main
 
+import "os"
+
 func main() {
-	Brutepeak("data/test.dat")
+	args := os.Args
+	BrutePeak(args[1], args[2])
 }

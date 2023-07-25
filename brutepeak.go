@@ -6,15 +6,28 @@ import (
 	"log"
 	"math"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
 
-const SIGMA = 5
+const SIGMA = 2
 
-func parseDatFile(path string) ([]float64, []float64, error) {
-	xs := make([]float64, 0)
-	ys := make([]float64, 0)
+type point struct {
+	x         float64
+	intensity float64
+}
+
+func BrutePeak(experimental_path, theoretical_path string) {
+	experimental_points := parseFile(experimental_path, "\t")
+	theoretical_points := parseFile(theoretical_path, " ")
+	createTheoretical(theoretical_points, experimental_points)
+}
+
+func parseFile(path, sep string) []point {
+	points := make([]point, 0)
+	pattern := regexp.MustCompile(`\s+`)
+
 	file, err := os.Open(path)
 	if err != nil {
 		log.Fatal(err)
@@ -23,47 +36,34 @@ func parseDatFile(path string) ([]float64, []float64, error) {
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line := strings.Split(scanner.Text(), " ")
-		x, err := strconv.ParseFloat(line[0], 16)
-		if err != nil {
-			return nil, nil, err
-		}
-		xs = append(xs, x)
-		y, err := strconv.ParseFloat(line[0], 16)
-		if err != nil {
-			return nil, nil, err
-		}
-		ys = append(ys, y)
+		linestring := pattern.ReplaceAllString(scanner.Text(), " ")
+		line := strings.Split(linestring, " ")
+		x, _ := strconv.ParseFloat(line[0], 64)
+		intensity, _ := strconv.ParseFloat(strings.ReplaceAll(line[1], "\\", ""), 64)
+		points = append(points, point{x: x, intensity: intensity})
 	}
 
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
 	}
-	return xs, ys, err
+	return points
 }
 
-func getGaussianValue(x int, center float64) float64 {
-	fx := float64(x)
-	multiplier := 1 / (SIGMA * math.Sqrt(2*math.Pi))
-	exponent := math.Exp(-math.Pow(fx-center, 2) / (2 * math.Pow(SIGMA, 2)))
+func getGaussianValue(ep, tp point) float64 {
+	multiplier := tp.intensity / (SIGMA * math.Sqrt(2*math.Pi))
+	exponent := math.Exp(-math.Pow(ep.x-tp.x, 2) / (2 * math.Pow(SIGMA, 2)))
 	return multiplier * exponent
 }
 
-func createGuassian(xs, ys []float64, length int) []float64 {
-	gaussFit := make([]float64, length)
-	base := make([]float64, length)
-	for _, x := range xs {
-		for i := 0; i < length; i++ {
-			gaussVal := getGaussianValue(i, x)
+func createTheoretical(theo_points, exp_points []point) []float64 {
+	base := make([]float64, len(exp_points))
+	for _, tp := range theo_points {
+		for i, ep := range exp_points {
+			gaussVal := getGaussianValue(ep, tp)
 			base[i] = base[i] + gaussVal
 		}
 
 	}
 	fmt.Println(base)
-	return gaussFit
-}
-
-func Brutepeak(path string) {
-	xs, ys, _ := parseDatFile(path)
-	createGuassian(xs, ys, 3000)
+	return base
 }
